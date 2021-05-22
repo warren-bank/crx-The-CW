@@ -18,9 +18,21 @@
 // ----------------------------------------------------------------------------- constants
 
 var user_options = {
-  "redirect_to_webcast_reloaded": true,
-  "force_http":                   true,
-  "force_https":                  false
+  "redirect_to_webcast_reloaded":  false,
+  "force_http":                    true,
+  "force_https":                   false
+}
+
+var constants = {
+  "dom_ids": {
+    "episodes_list":               "videosandtouts"
+  },
+  "dom_classes": {
+    "div_webcast_icons":           "icons-container"
+  },
+  "img_urls": {
+    "base_webcast_reloaded_icons": "https://github.com/warren-bank/crx-webcast-reloaded/raw/gh-pages/chrome_extension/2-release/popup/img/"
+  }
 }
 
 // ----------------------------------------------------------------------------- helpers
@@ -51,6 +63,45 @@ var download_text = function(url, headers, callback) {
   xhr.send()
 }
 
+// -----------------------------------------------------------------------------
+
+var make_element = function(elementName, html) {
+  var el = unsafeWindow.document.createElement(elementName)
+
+  if (html)
+    el.innerHTML = html
+
+  return el
+}
+
+var remove_elements = function(nodes) {
+  if (!nodes) return
+
+  var node
+  for (var i=0; i < nodes.length; i++) {
+    node = nodes[i]
+
+    if (node.parentNode)
+      node.parentNode.removeChild(node)
+  }
+}
+
+var add_style_element = function(css) {
+  if (!css) return
+
+  var head = unsafeWindow.document.getElementsByTagName('head')[0]
+  if (!head) return
+
+  if ('function' === (typeof css))
+    css = css()
+  if (Array.isArray(css))
+    css = css.join("\n")
+
+  head.appendChild(
+    make_element('style', css)
+  )
+}
+
 // ----------------------------------------------------------------------------- URL links to tools on Webcast Reloaded website
 
 var get_webcast_reloaded_url = function(video_url, vtt_url, referer_url, force_http, force_https) {
@@ -79,6 +130,18 @@ var get_webcast_reloaded_url = function(video_url, vtt_url, referer_url, force_h
 
   webcast_reloaded_url  = webcast_reloaded_base + '#/watch/' + encoded_video_url + (encoded_vtt_url ? ('/subtitle/' + encoded_vtt_url) : '') + '/referer/' + encoded_referer_url
   return webcast_reloaded_url
+}
+
+var get_webcast_reloaded_url_chromecast_sender = function(video_url, vtt_url, referer_url) {
+  return get_webcast_reloaded_url(video_url, vtt_url, referer_url, /* force_http= */ null, /* force_https= */ null).replace('/index.html', '/chromecast_sender.html')
+}
+
+var get_webcast_reloaded_url_airplay_sender = function(video_url, vtt_url, referer_url) {
+  return get_webcast_reloaded_url(video_url, vtt_url, referer_url, /* force_http= */ true, /* force_https= */ false).replace('/index.html', '/airplay_sender.es5.html')
+}
+
+var get_webcast_reloaded_url_proxy = function(hls_url, vtt_url, referer_url) {
+  return get_webcast_reloaded_url(hls_url, vtt_url, referer_url, /* force_http= */ true, /* force_https= */ false).replace('/index.html', '/proxy.html')
 }
 
 // ----------------------------------------------------------------------------- URL redirect
@@ -126,16 +189,16 @@ var process_video_url = function(video_url, video_type, vtt_url, referer_url) {
     }
 
     GM_startIntent.apply(this, args)
-    return true
   }
   else if (user_options.redirect_to_webcast_reloaded) {
     // running in standard web browser: redirect URL to top-level tool on Webcast Reloaded website
 
     redirect_to_url(get_webcast_reloaded_url(video_url, vtt_url, referer_url))
-    return true
   }
   else {
-    return false
+    // running in standard web browser: add URL links to tools on Webcast Reloaded website
+
+    insert_webcast_reloaded_div(unsafeWindow.document.body, video_url, vtt_url, referer_url)
   }
 }
 
@@ -147,14 +210,126 @@ var process_dash_url = function(dash_url, vtt_url, referer_url) {
   process_video_url(/* video_url= */ dash_url, /* video_type= */ 'application/dash+xml', vtt_url, referer_url)
 }
 
-// ----------------------------------------------------------------------------- DOM updates
+// ----------------------------------------------------------------------------- DOM: static skeleton
 
-var rewrite_dom = function() {
-  var episodes_list = unsafeWindow.document.querySelector('#videosandtouts')
-  if (!episodes_list) return
+var reinitialize_dom = function() {
+  var episodes_list = unsafeWindow.document.getElementById(constants.dom_ids.episodes_list)
+  if (episodes_list) {
+    // remove bad elements
+    remove_elements(episodes_list.querySelectorAll('#show-seasons'))
+    remove_elements(episodes_list.querySelectorAll('script'))
 
-  unsafeWindow.document.body.innerHTML = ''
-  unsafeWindow.document.body.appendChild(episodes_list)
+    // apply minor css tweaks
+    add_style_element(function(){
+      return [
+        'body, body > #' + constants.dom_ids.episodes_list + ' {',
+        '  margin:  0px;',
+        '  padding: 0px;',
+        '  background-color: #eeeeee;',
+        '}'
+      ]
+    })
+
+    unsafeWindow.document.body.innerHTML = ''
+    unsafeWindow.document.body.appendChild(episodes_list)
+  }
+
+  if ((typeof GM_startIntent !== 'function') && !user_options.redirect_to_webcast_reloaded) {
+    add_style_element(function(){
+      return [
+        'div.icons-container {',
+        '  display: block;',
+        '  position: absolute;',
+        '  z-index: 999;',
+        '  top:    10px;',
+        '  right:  10px;',
+        '  width:  60px;',
+        '  height: 60px;',
+        '  max-height: 60px;',
+        '  background-color: #d7ecf5;',
+        '  border: 1px solid #000;',
+        '  border-radius: 14px;',
+        '}',
+
+        'div.icons-container > a.chromecast,',
+        'div.icons-container > a.chromecast > img,',
+        'div.icons-container > a.airplay,',
+        'div.icons-container > a.airplay > img,',
+        'div.icons-container > a.proxy,',
+        'div.icons-container > a.proxy > img,',
+        'div.icons-container > a.video-link,',
+        'div.icons-container > a.video-link > img {',
+        '  display: block;',
+        '  width: 25px;',
+        '  height: 25px;',
+        '}',
+
+        'div.icons-container > a.chromecast,',
+        'div.icons-container > a.airplay,',
+        'div.icons-container > a.proxy,',
+        'div.icons-container > a.video-link {',
+        '  position: absolute;',
+        '  z-index: 1;',
+        '  text-decoration: none;',
+        '}',
+
+        'div.icons-container > a.chromecast,',
+        'div.icons-container > a.airplay {',
+        '  top: 0;',
+        '}',
+        'div.icons-container > a.proxy,',
+        'div.icons-container > a.video-link {',
+        '  bottom: 0;',
+        '}',
+
+        'div.icons-container > a.chromecast,',
+        'div.icons-container > a.proxy {',
+        '  left: 0;',
+        '}',
+        'div.icons-container > a.airplay,',
+        'div.icons-container > a.video-link {',
+        '  right: 0;',
+        '}',
+        'div.icons-container > a.airplay + a.video-link {',
+        '  right: 17px; /* (60 - 25)/2 to center when there is no proxy icon */',
+        '}'
+      ]
+    })
+  }
+}
+
+// ----------------------------------------------------------------------------- DOM: dynamic elements - URL links to tools on Webcast Reloaded website
+
+var make_webcast_reloaded_div = function(video_url, vtt_url, referer_url) {
+  var webcast_reloaded_urls = {
+//  "index":             get_webcast_reloaded_url(                  video_url, vtt_url, referer_url),
+    "chromecast_sender": get_webcast_reloaded_url_chromecast_sender(video_url, vtt_url, referer_url),
+    "airplay_sender":    get_webcast_reloaded_url_airplay_sender(   video_url, vtt_url, referer_url),
+    "proxy":             get_webcast_reloaded_url_proxy(            video_url, vtt_url, referer_url)
+  }
+
+  var div = make_element('div')
+
+  var html = [
+    '<a target="_blank" class="chromecast" href="' + webcast_reloaded_urls.chromecast_sender   + '" title="Chromecast Sender"><img src="'       + constants.img_urls.base_webcast_reloaded_icons + 'chromecast.png"></a>',
+    '<a target="_blank" class="airplay" href="'    + webcast_reloaded_urls.airplay_sender      + '" title="ExoAirPlayer Sender"><img src="'     + constants.img_urls.base_webcast_reloaded_icons + 'airplay.png"></a>',
+    '<a target="_blank" class="proxy" href="'      + webcast_reloaded_urls.proxy               + '" title="HLS-Proxy Configuration"><img src="' + constants.img_urls.base_webcast_reloaded_icons + 'proxy.png"></a>',
+    '<a target="_blank" class="video-link" href="' + video_url                                 + '" title="direct link to video"><img src="'    + constants.img_urls.base_webcast_reloaded_icons + 'video_link.png"></a>'
+  ]
+
+  div.setAttribute('class', constants.dom_classes.div_webcast_icons)
+  div.innerHTML = html.join("\n")
+
+  return div
+}
+
+var insert_webcast_reloaded_div = function(block_element, video_url, vtt_url, referer_url) {
+  var webcast_reloaded_div = make_webcast_reloaded_div(video_url, vtt_url, referer_url)
+
+  if (block_element.childNodes.length)
+    block_element.insertBefore(webcast_reloaded_div, block_element.childNodes[0])
+  else
+    block_element.appendChild(webcast_reloaded_div)
 }
 
 // ----------------------------------------------------------------------------- bootstrap
@@ -195,7 +370,7 @@ var init = function() {
       }
 
       download_text(url, headers, callback)
-      rewrite_dom()
+      reinitialize_dom()
     }
   }
 }
