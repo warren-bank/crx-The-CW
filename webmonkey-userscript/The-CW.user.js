@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The CW
 // @description  Watch videos in external player.
-// @version      1.0.1
+// @version      1.0.2
 // @match        *://cwtv.com/*
 // @match        *://*.cwtv.com/*
 // @icon         https://www.cwtv.com/images/cw/favicon.ico
@@ -28,7 +28,8 @@ var constants = {
     "episodes_list":               "videosandtouts"
   },
   "dom_classes": {
-    "div_webcast_icons":           "icons-container"
+    "div_webcast_icons":           "icons-container",
+    "is_new":                      "is-new"
   },
   "img_urls": {
     "base_webcast_reloaded_icons": "https://github.com/warren-bank/crx-webcast-reloaded/raw/gh-pages/chrome_extension/2-release/popup/img/"
@@ -212,6 +213,16 @@ var process_dash_url = function(dash_url, vtt_url, referer_url) {
 
 // ----------------------------------------------------------------------------- DOM: static skeleton
 
+var add_now_playing_label = function(episodes_list) {
+  var parent_element = episodes_list.querySelector('li.isplaying .videoimage')
+  if (!parent_element) return
+
+  var span = make_element('span', 'Now Playing')
+  span.className = constants.dom_classes.is_new
+
+  parent_element.appendChild(span)
+}
+
 var reinitialize_dom = function() {
   var episodes_list = unsafeWindow.document.getElementById(constants.dom_ids.episodes_list)
   if (episodes_list) {
@@ -219,6 +230,10 @@ var reinitialize_dom = function() {
     remove_elements(episodes_list.querySelectorAll('script'))
     remove_elements(episodes_list.querySelectorAll('#show-seasons'))
     remove_elements(episodes_list.querySelectorAll('a[href^="#"]'))
+    remove_elements(episodes_list.querySelectorAll('div.videoimage > span.' + constants.dom_classes.is_new))
+
+    // add label to thumbnail of video that is currently active
+    add_now_playing_label(episodes_list)
 
     // apply minor css tweaks
     add_style_element(function(){
