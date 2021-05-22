@@ -4,8 +4,6 @@
 // @version      1.0.0
 // @match        *://cwtv.com/*
 // @match        *://*.cwtv.com/*
-// @match        *://player.theplatform.com/p/cwtv/*
-// @match        *://*.player.theplatform.com/p/cwtv/*
 // @icon         https://www.cwtv.com/images/cw/favicon.ico
 // @run-at       document-end
 // @homepage     https://github.com/warren-bank/crx-The-CW/tree/webmonkey-userscript/es5
@@ -149,36 +147,55 @@ var process_dash_url = function(dash_url, vtt_url, referer_url) {
   process_video_url(/* video_url= */ dash_url, /* video_type= */ 'application/dash+xml', vtt_url, referer_url)
 }
 
+// ----------------------------------------------------------------------------- DOM updates
+
+var rewrite_dom = function() {
+  var episodes_list = unsafeWindow.document.querySelector('#videosandtouts')
+  if (!episodes_list) return
+
+  unsafeWindow.document.body.innerHTML = ''
+  unsafeWindow.document.body.appendChild(episodes_list)
+}
+
 // ----------------------------------------------------------------------------- bootstrap
 
 var init = function() {
   if ((typeof GM_getUrl === 'function') && (GM_getUrl() !== unsafeWindow.location.href)) return
 
-  if (unsafeWindow.location.hostname.indexOf('cwtv.com') >= 0) {
-    if (unsafeWindow.CWTV && ('object' === (typeof unsafeWindow.CWTV)) && unsafeWindow.CWTV.Site && ('object' === (typeof unsafeWindow.CWTV.Site)) && ('full' === CWTV.Site.curPlayingFormat) && CWTV.Site.mpx_player_url) {
-      redirect_to_url(CWTV.Site.mpx_player_url)
-      return
-    }
+  var regexs = {
+    "whitespace": /[\t\r\n]+/g,
+    "html_link":  /^.*?<link [^>]*rel=['"]alternate['"][^>]*href=['"]([^'"]+)['"][^>]*type=['"]application\/smil\+xml['"][^>]*>.*$/,
+    "smil_video": /^.*?<video [^>]*src=['"]([^'"]+)['"][^>]*>.*$/
   }
 
-  if ((unsafeWindow.location.hostname.indexOf('player.theplatform.com') >= 0) && (unsafeWindow.location.pathname.indexOf('/p/cwtv/') === 0)) {
-    var el = unsafeWindow.document.querySelector('link[rel="alternate"][type="application/smil+xml"][href]')
-    if (el) {
-      var url      = el.getAttribute('href') + '&format=SMIL&tracking=true&formats=MPEG-DASH+widevine,M3U+appleHlsEncryption,M3U+none,MPEG-DASH+none,MPEG4,MP3&vpaid=script&schema=2.0&sdk=PDK+6.4.2'
-      var headers  = null
-      var callback = function(smil) {
-        smil = smil.replace(/[\t\r\n]+/g, ' ')
+  var url, headers, callback
 
-        var video_regex = /^.*?<video [^>]*src=['"]([^'"]+)['"][^>]*>.*$/
+  if (unsafeWindow.location.hostname.indexOf('cwtv.com') >= 0) {
+    if (unsafeWindow.CWTV && ('object' === (typeof unsafeWindow.CWTV)) && unsafeWindow.CWTV.Site && ('object' === (typeof unsafeWindow.CWTV.Site)) && ('full' === CWTV.Site.curPlayingFormat) && CWTV.Site.mpx_player_url) {
+      url      = CWTV.Site.mpx_player_url
+      headers  = null
+      callback = function(text) { //html (video player)
+        text = text.replace(regexs.whitespace, ' ')
 
-        if (video_regex.test(smil)) {
-          var hls_url = smil.replace(video_regex, '$1')
+        if (regexs.html_link.test(text)) {
+          url      = text.replace(regexs.html_link, '$1') + '&format=SMIL&tracking=true&formats=MPEG-DASH+widevine,M3U+appleHlsEncryption,M3U+none,MPEG-DASH+none,MPEG4,MP3&vpaid=script&schema=2.0&sdk=PDK+6.4.2'
+          headers  = null
+          callback = function(text) { //smil (video metadata)
+            text = text.replace(regexs.whitespace, ' ')
 
-          process_hls_url(hls_url)
+            if (regexs.smil_video.test(text)) {
+              var hls_url = text.replace(regexs.smil_video, '$1')
+
+              process_hls_url(hls_url)
+            }
+          }
+
+          download_text(url, headers, callback)
         }
       }
 
       download_text(url, headers, callback)
+      rewrite_dom()
     }
   }
 }
