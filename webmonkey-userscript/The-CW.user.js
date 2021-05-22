@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The CW
 // @description  Watch videos in external player.
-// @version      1.0.2
+// @version      1.0.3
 // @match        *://cwtv.com/*
 // @match        *://*.cwtv.com/*
 // @icon         https://www.cwtv.com/images/cw/favicon.ico
@@ -33,6 +33,12 @@ var constants = {
   },
   "img_urls": {
     "base_webcast_reloaded_icons": "https://github.com/warren-bank/crx-webcast-reloaded/raw/gh-pages/chrome_extension/2-release/popup/img/"
+  }
+}
+
+var strings = {
+  "labels": {
+    "now_playing":                 "Now Playing"
   }
 }
 
@@ -217,10 +223,22 @@ var add_now_playing_label = function(episodes_list) {
   var parent_element = episodes_list.querySelector('li.isplaying .videoimage')
   if (!parent_element) return
 
-  var span = make_element('span', 'Now Playing')
+  var span = make_element('span', strings.labels.now_playing)
   span.className = constants.dom_classes.is_new
 
   parent_element.appendChild(span)
+
+  // apply minor css tweaks
+  add_style_element(function(){
+    return [
+      'body > #' + constants.dom_ids.episodes_list + ' li.isplaying .videoimage span.is-new {',
+      '  left: initial;',
+      '  right: 22px;',
+      '  bottom: 0px !important;',
+      '  font-size: 0.65em;',
+      '}'
+    ]
+  })
 }
 
 var reinitialize_dom = function() {
