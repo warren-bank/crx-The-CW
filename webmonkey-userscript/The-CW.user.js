@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The CW
 // @description  Watch videos in external player.
-// @version      1.0.0
+// @version      1.0.1
 // @match        *://cwtv.com/*
 // @match        *://*.cwtv.com/*
 // @icon         https://www.cwtv.com/images/cw/favicon.ico
@@ -216,8 +216,9 @@ var reinitialize_dom = function() {
   var episodes_list = unsafeWindow.document.getElementById(constants.dom_ids.episodes_list)
   if (episodes_list) {
     // remove bad elements
-    remove_elements(episodes_list.querySelectorAll('#show-seasons'))
     remove_elements(episodes_list.querySelectorAll('script'))
+    remove_elements(episodes_list.querySelectorAll('#show-seasons'))
+    remove_elements(episodes_list.querySelectorAll('a[href^="#"]'))
 
     // apply minor css tweaks
     add_style_element(function(){
