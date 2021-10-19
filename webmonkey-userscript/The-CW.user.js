@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The CW
 // @description  Watch videos in external player.
-// @version      1.0.3
+// @version      1.0.4
 // @match        *://cwtv.com/*
 // @match        *://*.cwtv.com/*
 // @icon         https://www.cwtv.com/images/cw/favicon.ico
@@ -18,9 +18,14 @@
 // ----------------------------------------------------------------------------- constants
 
 var user_options = {
-  "redirect_to_webcast_reloaded":  false,
-  "force_http":                    true,
-  "force_https":                   false
+  "webmonkey": {
+    "post_intent_redirect_to_url":  null
+  },
+  "greasemonkey": {
+    "redirect_to_webcast_reloaded": false,
+    "force_http":                   true,
+    "force_https":                  false
+  }
 }
 
 var constants = {
@@ -112,8 +117,8 @@ var add_style_element = function(css) {
 // ----------------------------------------------------------------------------- URL links to tools on Webcast Reloaded website
 
 var get_webcast_reloaded_url = function(video_url, vtt_url, referer_url, force_http, force_https) {
-  force_http  = (typeof force_http  === 'boolean') ? force_http  : user_options.force_http
-  force_https = (typeof force_https === 'boolean') ? force_https : user_options.force_https
+  force_http  = (typeof force_http  === 'boolean') ? force_http  : user_options.greasemonkey.force_http
+  force_https = (typeof force_https === 'boolean') ? force_https : user_options.greasemonkey.force_https
 
   var encoded_video_url, encoded_vtt_url, encoded_referer_url, webcast_reloaded_base, webcast_reloaded_url
 
@@ -157,10 +162,10 @@ var redirect_to_url = function(url) {
   if (!url) return
 
   if (typeof GM_loadUrl === 'function') {
-    if ((url[0] === '/') && (typeof GM_resolveUrl === 'function'))
-      url = GM_resolveUrl(url, unsafeWindow.location.href)
-    if (url.indexOf('http') === 0)
-      GM_loadUrl(url, 'Referer', unsafeWindow.location.href)
+    if (typeof GM_resolveUrl === 'function')
+      url = GM_resolveUrl(url, unsafeWindow.location.href) || url
+
+    GM_loadUrl(url, 'Referer', unsafeWindow.location.href)
   }
   else {
     try {
@@ -170,6 +175,19 @@ var redirect_to_url = function(url) {
       unsafeWindow.window.location = url
     }
   }
+}
+
+var process_webmonkey_post_intent_redirect_to_url = function() {
+  var url = null
+
+  if (typeof user_options.webmonkey.post_intent_redirect_to_url === 'string')
+    url = user_options.webmonkey.post_intent_redirect_to_url
+
+  if (typeof user_options.webmonkey.post_intent_redirect_to_url === 'function')
+    url = user_options.webmonkey.post_intent_redirect_to_url()
+
+  if (typeof url === 'string')
+    redirect_to_url(url)
 }
 
 var process_video_url = function(video_url, video_type, vtt_url, referer_url) {
@@ -196,8 +214,9 @@ var process_video_url = function(video_url, video_type, vtt_url, referer_url) {
     }
 
     GM_startIntent.apply(this, args)
+    process_webmonkey_post_intent_redirect_to_url()
   }
-  else if (user_options.redirect_to_webcast_reloaded) {
+  else if (user_options.greasemonkey.redirect_to_webcast_reloaded) {
     // running in standard web browser: redirect URL to top-level tool on Webcast Reloaded website
 
     redirect_to_url(get_webcast_reloaded_url(video_url, vtt_url, referer_url))
@@ -268,7 +287,7 @@ var reinitialize_dom = function() {
     unsafeWindow.document.body.appendChild(episodes_list)
   }
 
-  if ((typeof GM_startIntent !== 'function') && !user_options.redirect_to_webcast_reloaded) {
+  if ((typeof GM_startIntent !== 'function') && !user_options.greasemonkey.redirect_to_webcast_reloaded) {
     add_style_element(function(){
       return [
         'div.icons-container {',
