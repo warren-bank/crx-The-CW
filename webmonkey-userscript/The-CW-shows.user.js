@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name         The CW
+// @name         The CW: shows
 // @description  Watch videos in external player.
 // @version      1.0.5
-// @match        *://*.cwtv.com/*
+// @match        *://*.cwtv.com/shows/*
 // @icon         https://www.cwtv.com/images/cw/favicon.ico
 // @run-at       document-end
 // @homepage     https://github.com/warren-bank/crx-The-CW/tree/webmonkey-userscript/es5
 // @supportURL   https://github.com/warren-bank/crx-The-CW/issues
-// @downloadURL  https://github.com/warren-bank/crx-The-CW/raw/webmonkey-userscript/es5/webmonkey-userscript/The-CW.user.js
-// @updateURL    https://github.com/warren-bank/crx-The-CW/raw/webmonkey-userscript/es5/webmonkey-userscript/The-CW.user.js
+// @downloadURL  https://github.com/warren-bank/crx-The-CW/raw/webmonkey-userscript/es5/webmonkey-userscript/The-CW-shows.user.js
+// @updateURL    https://github.com/warren-bank/crx-The-CW/raw/webmonkey-userscript/es5/webmonkey-userscript/The-CW-shows.user.js
 // @namespace    warren-bank
 // @author       Warren Bank
 // @copyright    Warren Bank
