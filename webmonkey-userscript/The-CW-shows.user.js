@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The CW: shows
 // @description  Watch videos in external player.
-// @version      1.0.5
+// @version      1.0.6
 // @match        *://*.cwtv.com/shows/*
 // @icon         https://www.cwtv.com/images/cw/favicon.ico
 // @run-at       document-end
@@ -112,16 +112,17 @@ var add_style_element = function(css) {
 
 // ----------------------------------------------------------------------------- URL links to tools on Webcast Reloaded website
 
-var get_webcast_reloaded_url = function(video_url, vtt_url, referer_url, force_http, force_https) {
+var get_webcast_reloaded_url = function(video_url, vtt_url, referer_url, drm_scheme, drm_server, force_http, force_https) {
   force_http  = (typeof force_http  === 'boolean') ? force_http  : user_options.greasemonkey.force_http
   force_https = (typeof force_https === 'boolean') ? force_https : user_options.greasemonkey.force_https
 
-  var encoded_video_url, encoded_vtt_url, encoded_referer_url, webcast_reloaded_base, webcast_reloaded_url
+  var encoded_video_url, encoded_vtt_url, encoded_referer_url, encoded_drm_url, webcast_reloaded_base, webcast_reloaded_url
 
   encoded_video_url     = encodeURIComponent(encodeURIComponent(btoa(video_url)))
   encoded_vtt_url       = vtt_url ? encodeURIComponent(encodeURIComponent(btoa(vtt_url))) : null
   referer_url           = referer_url ? referer_url : unsafeWindow.location.href
   encoded_referer_url   = encodeURIComponent(encodeURIComponent(btoa(referer_url)))
+  encoded_drm_url       = (drm_scheme && drm_server) ? encodeURIComponent(encodeURIComponent(btoa(drm_scheme + '|' + drm_server))) : null
 
   webcast_reloaded_base = {
     "https": "https://warren-bank.github.io/crx-webcast-reloaded/external_website/index.html",
@@ -136,20 +137,24 @@ var get_webcast_reloaded_url = function(video_url, vtt_url, referer_url, force_h
                                   ? webcast_reloaded_base.http
                                   : webcast_reloaded_base.https
 
-  webcast_reloaded_url  = webcast_reloaded_base + '#/watch/' + encoded_video_url + (encoded_vtt_url ? ('/subtitle/' + encoded_vtt_url) : '') + '/referer/' + encoded_referer_url
+  webcast_reloaded_url  = webcast_reloaded_base    + '#/watch/'    + encoded_video_url
+                            + (encoded_vtt_url     ? ('/subtitle/' + encoded_vtt_url) : '')
+                            + (encoded_referer_url ? ('/referer/'  + encoded_referer_url) : '')
+                            + (encoded_drm_url     ? ('/drm/'      + encoded_drm_url) : '')
+
   return webcast_reloaded_url
 }
 
-var get_webcast_reloaded_url_chromecast_sender = function(video_url, vtt_url, referer_url) {
-  return get_webcast_reloaded_url(video_url, vtt_url, referer_url, /* force_http= */ null, /* force_https= */ null).replace('/index.html', '/chromecast_sender.html')
+var get_webcast_reloaded_url_chromecast_sender = function(video_url, vtt_url, referer_url, drm_scheme, drm_server) {
+  return get_webcast_reloaded_url(video_url, vtt_url, referer_url, drm_scheme, drm_server, /* force_http= */ null, /* force_https= */ null).replace('/index.html', '/chromecast_sender.html')
 }
 
-var get_webcast_reloaded_url_airplay_sender = function(video_url, vtt_url, referer_url) {
-  return get_webcast_reloaded_url(video_url, vtt_url, referer_url, /* force_http= */ true, /* force_https= */ false).replace('/index.html', '/airplay_sender.es5.html')
+var get_webcast_reloaded_url_airplay_sender = function(video_url, vtt_url, referer_url, drm_scheme, drm_server) {
+  return get_webcast_reloaded_url(video_url, vtt_url, referer_url, drm_scheme, drm_server, /* force_http= */ true, /* force_https= */ false).replace('/index.html', '/airplay_sender.es5.html')
 }
 
-var get_webcast_reloaded_url_proxy = function(hls_url, vtt_url, referer_url) {
-  return get_webcast_reloaded_url(hls_url, vtt_url, referer_url, /* force_http= */ true, /* force_https= */ false).replace('/index.html', '/proxy.html')
+var get_webcast_reloaded_url_proxy = function(hls_url, vtt_url, referer_url, drm_scheme, drm_server) {
+  return get_webcast_reloaded_url(hls_url, vtt_url, referer_url, drm_scheme, drm_server, /* force_http= */ true, /* force_https= */ false).replace('/index.html', '/proxy.html')
 }
 
 // ----------------------------------------------------------------------------- URL redirect
@@ -186,7 +191,7 @@ var process_webmonkey_post_intent_redirect_to_url = function() {
     redirect_to_url(url)
 }
 
-var process_video_url = function(video_url, video_type, vtt_url, referer_url) {
+var process_video_url = function(video_url, video_type, vtt_url, referer_url, drm_scheme, drm_server) {
   if (!referer_url)
     referer_url = unsafeWindow.location.href
 
@@ -208,6 +213,13 @@ var process_video_url = function(video_url, video_type, vtt_url, referer_url) {
       args.push('referUrl')
       args.push(referer_url)
     }
+    if (drm_scheme && drm_server) {
+      args.push('drmScheme')
+      args.push(drm_scheme)
+
+      args.push('drmUrl')
+      args.push(drm_server)
+    }
 
     GM_startIntent.apply(this, args)
     process_webmonkey_post_intent_redirect_to_url()
@@ -215,12 +227,12 @@ var process_video_url = function(video_url, video_type, vtt_url, referer_url) {
   else if (user_options.greasemonkey.redirect_to_webcast_reloaded) {
     // running in standard web browser: redirect URL to top-level tool on Webcast Reloaded website
 
-    redirect_to_url(get_webcast_reloaded_url(video_url, vtt_url, referer_url))
+    redirect_to_url(get_webcast_reloaded_url(video_url, vtt_url, referer_url, drm_scheme, drm_server))
   }
   else {
     // running in standard web browser: add URL links to tools on Webcast Reloaded website
 
-    insert_webcast_reloaded_div(unsafeWindow.document.body, video_url, vtt_url, referer_url)
+    insert_webcast_reloaded_div(unsafeWindow.document.body, video_url, vtt_url, referer_url, drm_scheme, drm_server)
   }
 }
 
@@ -256,7 +268,7 @@ var reinitialize_dom = function() {
         '  height: 60px;',
         '  max-height: 60px;',
         '  background-color: #d7ecf5;',
-        '  border: 1px solid #000;',
+        '  border: 5px solid #d7ecf5;',
         '  border-radius: 14px;',
         '}',
 
@@ -314,12 +326,12 @@ var reinitialize_dom = function() {
 
 // ----------------------------------------------------------------------------- DOM: dynamic elements - URL links to tools on Webcast Reloaded website
 
-var make_webcast_reloaded_div = function(video_url, vtt_url, referer_url) {
+var make_webcast_reloaded_div = function(video_url, vtt_url, referer_url, drm_scheme, drm_server) {
   var webcast_reloaded_urls = {
-//  "index":             get_webcast_reloaded_url(                  video_url, vtt_url, referer_url),
-    "chromecast_sender": get_webcast_reloaded_url_chromecast_sender(video_url, vtt_url, referer_url),
-    "airplay_sender":    get_webcast_reloaded_url_airplay_sender(   video_url, vtt_url, referer_url),
-    "proxy":             get_webcast_reloaded_url_proxy(            video_url, vtt_url, referer_url)
+//  "index":             get_webcast_reloaded_url(                  video_url, vtt_url, referer_url, drm_scheme, drm_server),
+    "chromecast_sender": get_webcast_reloaded_url_chromecast_sender(video_url, vtt_url, referer_url, drm_scheme, drm_server),
+    "airplay_sender":    get_webcast_reloaded_url_airplay_sender(   video_url, vtt_url, referer_url, drm_scheme, drm_server),
+    "proxy":             get_webcast_reloaded_url_proxy(            video_url, vtt_url, referer_url, drm_scheme, drm_server)
   }
 
   var div = make_element('div')
@@ -337,8 +349,8 @@ var make_webcast_reloaded_div = function(video_url, vtt_url, referer_url) {
   return div
 }
 
-var insert_webcast_reloaded_div = function(block_element, video_url, vtt_url, referer_url) {
-  var webcast_reloaded_div = make_webcast_reloaded_div(video_url, vtt_url, referer_url)
+var insert_webcast_reloaded_div = function(block_element, video_url, vtt_url, referer_url, drm_scheme, drm_server) {
+  var webcast_reloaded_div = make_webcast_reloaded_div(video_url, vtt_url, referer_url, drm_scheme, drm_server)
 
   if (block_element.childNodes.length)
     block_element.insertBefore(webcast_reloaded_div, block_element.childNodes[0])
@@ -349,8 +361,8 @@ var insert_webcast_reloaded_div = function(block_element, video_url, vtt_url, re
 // ----------------------------------------------------------------------------- XHR
 
 var get_mpx_url = function(callback) {
-//var qs_params = '?format=SMIL&formats=MPEG-DASH,M3U&tracking=true&mbr=false&assetType=drm|clear'
-  var qs_params = '?format=SMIL&formats=M3U&tracking=true&mbr=false'
+//var qs_params = '?format=SMIL&formats=M3U&tracking=true&mbr=false'
+  var qs_params = '?format=SMIL&formats=MPEG-DASH,M3U&tracking=true&mbr=false&assetType=drm|clear'
 
   download_text(
     ('https://images.cwtv.com/feed/app-2/video-meta/apiversion_22/device_web/guid_' + state.guid),
@@ -372,6 +384,24 @@ var get_mpx_url = function(callback) {
   )
 }
 
+var get_drm_url = function(pid, callback) {
+  download_text(
+    ('https://images.cwtv.com/video/get-user-cred/' + state.guid + '/?' + Math.floor(Date.now() / 1000)),
+    null,
+    function(text) {
+      var data, token, drm_url
+      try {
+        data    = JSON.parse(text)
+        token   = data.signInResponse.token
+        drm_url = 'https://widevine.entitlement.theplatform.com/wv/web/ModularDrm/getRawWidevineLicense?form=json&schema=1.0&account=http%3A%2F%2Faccess.auth.theplatform.com%2Fdata%2FAccount%2F2703454149&releasePid=' + pid + '&token=' + token
+      }
+      catch(e) {}
+
+      callback(drm_url)
+    }
+  )
+}
+
 var get_video_data = function(callback) {
   get_mpx_url(function(mpx_url) {
     download_text(
@@ -381,9 +411,11 @@ var get_video_data = function(callback) {
         var regexs = {
           "whitespace": /[\t\r\n]+/g,
           "video":      /<video[^>]*src="([^"]+)"[^>]*type="([^"]+)"/,
-          "captions":   /<textstream[^>]*src="([^"]+)"/
+          "captions":   /<textstream[^>]*src="([^"]+\.vtt)"/,
+          "is_drm":     /<param\s+name="isDRM"\s+value="([^"]+)"/,
+          "pid":        /\|pid=([^\|]+)\|/
         }
-        var video_url, video_type, vtt_url
+        var video_url, video_type, vtt_url, is_drm, pid
         var match
 
         text = text.replace(regexs.whitespace, ' ')
@@ -398,7 +430,27 @@ var get_video_data = function(callback) {
             vtt_url = match[1]
           }
 
-          callback(video_url, video_type, vtt_url)
+          match = regexs.is_drm.exec(text)
+          is_drm = match && (match[1].toLowerCase() === 'true')
+
+          if (is_drm) {
+            match = regexs.pid.exec(text)
+            if (match) {
+              pid = match[1]
+            }
+          }
+
+          if (is_drm && pid) {
+            get_drm_url(pid, function(drm_url) {
+              if (drm_url)
+                callback(video_url, video_type, /* vtt_url= */ null, /* referer_url= */ null, /* drm_scheme= */ 'widevine', drm_url)
+              else
+                callback(video_url, video_type, vtt_url)
+            })
+          }
+          else {
+            callback(video_url, video_type, vtt_url)
+          }
         }
       }
     )
